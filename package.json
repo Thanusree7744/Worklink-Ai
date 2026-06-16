@@ -1,5 +1,6 @@
 {
-  "name": "@figma/my-make-file",
+  "name": "worklink-ai-frontend",
+  "description": "Frontend application for WorkLink AI - AI-powered job matching platform",
   "private": true,
   "version": "0.0.1",
   "type": "module",
