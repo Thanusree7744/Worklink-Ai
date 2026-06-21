@@ -28,7 +28,7 @@ app.include_router(workers.router, prefix="/workers", tags=["workers"])
 app.include_router(recommendations.router, prefix="/recommendations", tags=["recommendations"])
 app.include_router(uploads.router, prefix="/uploads", tags=["uploads"])
 app.include_router(reviews.router, prefix="/reviews", tags=["reviews"])
-app.include_router(ping.router, prefix="/", tags=["ping"])
+app.include_router(ping.router, prefix="", tags=["ping"])
 
 @app.get("/health")
 def health():

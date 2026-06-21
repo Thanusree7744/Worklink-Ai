@@ -1,4 +1,4 @@
-from pydantic import BaseSettings
+from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     UPLOADS_DIR: str = "./static/uploads"
 
     class Config:
-        env_file = "../.env"
+        env_file = ".env"
 
 
 settings = Settings()
