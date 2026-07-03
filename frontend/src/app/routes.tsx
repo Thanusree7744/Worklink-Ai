@@ -13,6 +13,7 @@ import { AIRecommendationsPage } from './pages/AIRecommendationsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { AdminDashboard } from './pages/AdminDashboard';
 import { NotFound } from './pages/NotFound';
+import RequireAuth from './components/RequireAuth';
 
 export const router = createBrowserRouter([
   {
@@ -33,19 +34,35 @@ export const router = createBrowserRouter([
   },
   {
     path: '/worker-dashboard',
-    Component: WorkerDashboard,
+    Component: () => (
+      <RequireAuth requiredRole="worker">
+        <WorkerDashboard />
+      </RequireAuth>
+    ),
   },
   {
     path: '/customer-dashboard',
-    Component: CustomerDashboard,
+    Component: () => (
+      <RequireAuth requiredRole="customer">
+        <CustomerDashboard />
+      </RequireAuth>
+    ),
   },
   {
     path: '/post-job',
-    Component: JobPostingPage,
+    Component: () => (
+      <RequireAuth>
+        <JobPostingPage />
+      </RequireAuth>
+    ),
   },
   {
     path: '/find-workers',
-    Component: WorkerSearchPage,
+    Component: () => (
+      <RequireAuth>
+        <WorkerSearchPage />
+      </RequireAuth>
+    ),
   },
   {
     path: '/worker/:id',
@@ -57,15 +74,27 @@ export const router = createBrowserRouter([
   },
   {
     path: '/ai-recommendations',
-    Component: AIRecommendationsPage,
+    Component: () => (
+      <RequireAuth>
+        <AIRecommendationsPage />
+      </RequireAuth>
+    ),
   },
   {
     path: '/settings',
-    Component: SettingsPage,
+    Component: () => (
+      <RequireAuth>
+        <SettingsPage />
+      </RequireAuth>
+    ),
   },
   {
     path: '/admin-dashboard',
-    Component: AdminDashboard,
+    Component: () => (
+      <RequireAuth requiredRole="admin">
+        <AdminDashboard />
+      </RequireAuth>
+    ),
   },
   {
     path: '*',

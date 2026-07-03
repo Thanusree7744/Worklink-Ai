@@ -1,19 +1,33 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link, useNavigate, useLocation } from 'react-router';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Checkbox } from '../components/ui/checkbox';
 import { Sparkles, HardHat, Users, ArrowRight, Star } from 'lucide-react';
+import { Alert, AlertTitle, AlertDescription } from '../components/ui/alert';
+import { useAuth } from '../contexts/AuthContext';
+import useOAuth from '../hooks/useOAuth';
+import { apiClient } from '../services/api';
 
 export function LoginPage() {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const { login, isLoading, error, clearError, finishLogin } = useAuth();
+  const { openOAuth } = useOAuth();
+  const location = useLocation();
+  const fromPath = (location.state as any)?.from?.pathname as string | undefined;
 
-  const handleLogin = (userType: 'worker' | 'customer') => {
-    navigate(`/${userType}-dashboard`);
+  const handleLogin = async (userType: 'worker' | 'customer') => {
+    try {
+      const user = await login(email, password, userType as any);
+      const dest = fromPath ?? `/${user.role}-dashboard` ?? `/${userType}-dashboard`;
+      navigate(dest);
+    } catch (err) {
+      // error state is managed in AuthContext; no-op here
+    }
   };
 
   return (
@@ -102,6 +116,12 @@ export function LoginPage() {
                   onSubmit={(e) => { e.preventDefault(); handleLogin(type); }}
                   className="space-y-4"
                 >
+                  {error && (
+                    <Alert variant="destructive">
+                      <AlertTitle>Login failed</AlertTitle>
+                      <AlertDescription>{error}</AlertDescription>
+                    </Alert>
+                  )}
                   <div className="space-y-1.5">
                     <Label htmlFor={`${type}-email`}>Email</Label>
                     <Input
@@ -109,7 +129,7 @@ export function LoginPage() {
                       type="email"
                       placeholder={`${type}@example.com`}
                       value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      onChange={(e) => { setEmail(e.target.value); if (error) clearError(); }}
                       required
                     />
                   </div>
@@ -123,7 +143,7 @@ export function LoginPage() {
                       type="password"
                       placeholder="••••••••"
                       value={password}
-                      onChange={(e) => setPassword(e.target.value)}
+                      onChange={(e) => { setPassword(e.target.value); if (error) clearError(); }}
                       required
                     />
                   </div>
@@ -133,8 +153,8 @@ export function LoginPage() {
                       Remember me for 30 days
                     </label>
                   </div>
-                  <Button type="submit" className="w-full gap-2">
-                    Sign in as {type === 'worker' ? 'Worker' : 'Customer'}
+                  <Button type="submit" className="w-full gap-2" disabled={isLoading}>
+                    {isLoading ? 'Signing in...' : `Sign in as ${type === 'worker' ? 'Worker' : 'Customer'}`}
                     <ArrowRight className="w-4 h-4" />
                   </Button>
                 </form>
@@ -152,8 +172,42 @@ export function LoginPage() {
           </div>
 
           <div className="grid grid-cols-2 gap-3 mt-6">
-            <Button variant="outline" type="button">Google</Button>
-            <Button variant="outline" type="button">Apple</Button>
+            <Button
+              variant="outline"
+              type="button"
+              onClick={async () => {
+                try {
+                  const res = await openOAuth('google');
+                  if (res?.token) {
+                    const user = await finishLogin(res.token as string, res.user);
+                    const dest = fromPath ?? (user ? `/${user.role}-dashboard` : '/');
+                    navigate(dest);
+                  }
+                } catch (err) {
+                  console.error(err);
+                }
+              }}
+            >
+              Google
+            </Button>
+            <Button
+              variant="outline"
+              type="button"
+              onClick={async () => {
+                try {
+                  const res = await openOAuth('apple');
+                  if (res?.token) {
+                    const user = await finishLogin(res.token as string, res.user);
+                    const dest = fromPath ?? (user ? `/${user.role}-dashboard` : '/');
+                    navigate(dest);
+                  }
+                } catch (err) {
+                  console.error(err);
+                }
+              }}
+            >
+              Apple
+            </Button>
           </div>
 
           <p className="text-center text-sm text-muted-foreground mt-8">
