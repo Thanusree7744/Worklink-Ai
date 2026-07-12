@@ -142,3 +142,48 @@ class AuthResponse(BaseModel):
     token: str
     user: UserResponse
 
+
+class WorkerResponse(BaseModel):
+    id: str
+    name: str
+    title: str
+    skills: List[str]
+    rating: float
+    reviewCount: int
+    hourlyRate: float
+    location: str
+    verified: bool
+    availability: str
+    profileImage: Optional[str] = None
+    skillLevel: str
+    completedJobs: int
+    bio: str
+    experience: int
+    distance: float = 0.0
+    responseTime: str = "1 hour"
+    matchScore: Optional[float] = None
+
+    class Config:
+        orm_mode = True
+
+
+class JobResponse(BaseModel):
+    id: str
+    title: str
+    description: str
+    category: str
+    budget: float
+    budgetType: str
+    location: str
+    postedBy: str
+    postedDate: str
+    status: str
+    applicants: int = 0
+    requiredSkills: List[str]
+    urgency: str
+    matchScore: Optional[float] = None
+
+    class Config:
+        orm_mode = True
+
+

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Navbar } from '../components/worklink/Navbar';
 import { DashboardSidebar } from '../components/worklink/DashboardSidebar';
 import { WorkerCard } from '../components/worklink/WorkerCard';
@@ -19,8 +19,10 @@ import {
   Brain,
   RefreshCw,
   Info,
+  Loader2,
 } from 'lucide-react';
-import { mockWorkers, mockJobs } from '../data/mockData';
+import { apiClient } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer, Tooltip } from 'recharts';
 
 const matchFactors = [
@@ -42,16 +44,42 @@ const signalWeights = [
 
 export function AIRecommendationsPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [userType] = useState<'worker' | 'customer'>('worker');
+  const { user } = useAuth();
+  const userType = user?.role === 'worker' ? 'worker' : 'customer';
+  const [recommendedJobs, setRecommendedJobs] = useState<any[]>([]);
+  const [recommendedWorkers, setRecommendedWorkers] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const recommendedJobs = mockJobs.filter((job) => job.matchScore && job.matchScore >= 85);
-  const recommendedWorkers = mockWorkers.filter((w) => w.matchScore && w.matchScore >= 85);
-
-  const handleRefresh = () => {
-    setIsRefreshing(true);
-    setTimeout(() => setIsRefreshing(false), 1500);
+  const fetchRecommendations = async () => {
+    try {
+      setIsLoading(true);
+      if (userType === 'worker') {
+        const data = await apiClient.get<any[]>('/recommendations/jobs');
+        setRecommendedJobs(data);
+      } else {
+        const data = await apiClient.get<any[]>('/recommendations/workers');
+        setRecommendedWorkers(data);
+      }
+    } catch (err) {
+      console.error('Failed to load recommendations', err);
+    } finally {
+      setIsLoading(false);
+    }
   };
+
+  useEffect(() => {
+    if (user) {
+      fetchRecommendations();
+    }
+  }, [user, userType]);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await fetchRecommendations();
+    setIsRefreshing(false);
+  };
+
 
   return (
     <div className="min-h-screen bg-background">
@@ -208,7 +236,11 @@ export function AIRecommendationsPage() {
               <Badge variant="outline" className="text-xs">Updated 34 min ago</Badge>
             </div>
 
-            {userType === 'worker' ? (
+            {isLoading ? (
+              <div className="flex items-center justify-center py-20">
+                <Loader2 className="w-8 h-8 text-primary animate-spin" />
+              </div>
+            ) : userType === 'worker' ? (
               <>
                 <TabsContent value="jobs" className="space-y-0">
                   <p className="text-sm text-muted-foreground mb-5">

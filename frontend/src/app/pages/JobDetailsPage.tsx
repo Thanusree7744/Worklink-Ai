@@ -1,4 +1,5 @@
-import { useParams } from 'react-router';
+import { useState, useEffect } from 'react';
+import { useParams, Link } from 'react-router';
 import { Navbar } from '../components/worklink/Navbar';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -13,14 +14,66 @@ import {
   Calendar,
   AlertCircle,
   CheckCircle2,
+  Loader2,
 } from 'lucide-react';
-import { mockJobs, mockWorkers } from '../data/mockData';
+import { apiClient } from '../services/api';
 import { AIMatchBadge } from '../components/worklink/AIMatchBadge';
 
 export function JobDetailsPage() {
   const { id } = useParams();
-  const job = mockJobs.find((j) => j.id === id) || mockJobs[0];
-  const recommendedWorkers = mockWorkers.slice(0, 3);
+  const [job, setJob] = useState<any>(null);
+  const [recommendedWorkers, setRecommendedWorkers] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchJobDetails = async () => {
+      try {
+        setIsLoading(true);
+        const [jobData, recsData] = await Promise.all([
+          apiClient.get<any>(`/jobs/${id}`),
+          apiClient.get<any>(`/recommendations/job/${id}`)
+        ]);
+        setJob(jobData);
+        setRecommendedWorkers((recsData.recommendations || []).map((r: any) => r.worker));
+        setError(null);
+      } catch (err: any) {
+        setError(err.message || 'Failed to load job details');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    if (id) {
+      fetchJobDetails();
+    }
+  }, [id]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <Navbar userType="worker" />
+        <div className="flex-1 flex items-center justify-center">
+          <Loader2 className="w-8 h-8 text-primary animate-spin" />
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !job) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <Navbar userType="worker" />
+        <div className="flex-1 flex flex-col items-center justify-center p-4">
+          <h2 className="text-xl font-semibold mb-2">Job not found</h2>
+          <p className="text-muted-foreground mb-4">{error || 'Could not load details'}</p>
+          <Link to="/worker-dashboard">
+            <Button>Back to Dashboard</Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
 
   const getUrgencyColor = () => {
     if (job.urgency === 'high') return 'bg-red-100 text-red-800';
@@ -112,7 +165,7 @@ export function JobDetailsPage() {
                 <div>
                   <h3 className="font-semibold mb-3">Required Skills</h3>
                   <div className="flex flex-wrap gap-2">
-                    {job.requiredSkills.map((skill, index) => (
+                    {job.requiredSkills.map((skill: string, index: number) => (
                       <Badge key={index} variant="secondary">
                         {skill}
                       </Badge>

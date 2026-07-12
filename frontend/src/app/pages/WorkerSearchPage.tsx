@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Navbar } from '../components/worklink/Navbar';
 import { DashboardSidebar } from '../components/worklink/DashboardSidebar';
 import { WorkerCard } from '../components/worklink/WorkerCard';
@@ -8,20 +8,40 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Slider } from '../components/ui/slider';
 import { Label } from '../components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
-import { Search, SlidersHorizontal } from 'lucide-react';
-import { mockWorkers } from '../data/mockData';
+import { Search, SlidersHorizontal, Loader2 } from 'lucide-react';
+import { apiClient } from '../services/api';
 
 export function WorkerSearchPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showFilters, setShowFilters] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [maxDistance, setMaxDistance] = useState([10]);
+  const [workers, setWorkers] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const filteredWorkers = mockWorkers.filter((worker) =>
-    worker.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    worker.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    worker.skills.some((skill) => skill.toLowerCase().includes(searchQuery.toLowerCase()))
+  useEffect(() => {
+    const fetchWorkers = async () => {
+      try {
+        setIsLoading(true);
+        const data = await apiClient.get<any[]>('/workers');
+        setWorkers(data);
+        setError(null);
+      } catch (err: any) {
+        setError(err.message || 'Failed to fetch workers');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchWorkers();
+  }, []);
+
+  const filteredWorkers = workers.filter((worker) =>
+    (worker.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (worker.title || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    worker.skills.some((skill: string) => skill.toLowerCase().includes(searchQuery.toLowerCase()))
   );
+
 
   return (
     <div className="min-h-screen bg-background">

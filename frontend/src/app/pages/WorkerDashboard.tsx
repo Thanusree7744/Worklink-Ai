@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Navbar } from '../components/worklink/Navbar';
 import { DashboardSidebar } from '../components/worklink/DashboardSidebar';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -15,8 +15,10 @@ import {
   CheckCircle2,
   ArrowRight,
   Search,
+  Loader2,
 } from 'lucide-react';
-import { mockJobs, workerDashboardStats } from '../data/mockData';
+import { apiClient } from '../services/api';
+import { workerDashboardStats } from '../data/mockData';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Link } from 'react-router';
 
@@ -31,7 +33,24 @@ const earningsData = [
 
 export function WorkerDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const recommendedJobs = mockJobs.filter((job) => job.matchScore && job.matchScore >= 90).slice(0, 3);
+  const [recommendedJobs, setRecommendedJobs] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        setIsLoading(true);
+        const data = await apiClient.get<any[]>('/recommendations/jobs');
+        setRecommendedJobs(data.slice(0, 3));
+      } catch (err) {
+        console.error('Failed to load dashboard data', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchDashboardData();
+  }, []);
+
 
   return (
     <div className="min-h-screen bg-background">
@@ -209,11 +228,21 @@ export function WorkerDashboard() {
               </Button>
             </CardHeader>
             <CardContent>
-              <div className="grid lg:grid-cols-2 gap-4">
-                {recommendedJobs.map((job) => (
-                  <JobCard key={job.id} job={job} showMatchScore />
-                ))}
-              </div>
+              {isLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 text-primary animate-spin" />
+                </div>
+              ) : recommendedJobs.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground text-sm">
+                  No recommended jobs found.
+                </div>
+              ) : (
+                <div className="grid lg:grid-cols-2 gap-4">
+                  {recommendedJobs.map((job) => (
+                    <JobCard key={job.id} job={job} showMatchScore />
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
 

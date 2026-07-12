@@ -10,7 +10,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../co
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { RadioGroup, RadioGroupItem } from '../components/ui/radio-group';
 import { Badge } from '../components/ui/badge';
-import { X } from 'lucide-react';
+import { X, Loader2 } from 'lucide-react';
+import { apiClient } from '../services/api';
 
 export function JobPostingPage() {
   const navigate = useNavigate();
@@ -18,6 +19,10 @@ export function JobPostingPage() {
   const [skills, setSkills] = useState<string[]>([]);
   const [currentSkill, setCurrentSkill] = useState('');
   const [budgetType, setBudgetType] = useState<'fixed' | 'hourly'>('fixed');
+  const [category, setCategory] = useState('');
+  const [urgency, setUrgency] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const addSkill = () => {
     if (currentSkill && !skills.includes(currentSkill)) {
@@ -30,10 +35,47 @@ export function JobPostingPage() {
     setSkills(skills.filter((s) => s !== skill));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    navigate('/customer-dashboard');
+    setError(null);
+    setIsSubmitting(true);
+
+    const formEl = e.currentTarget as HTMLFormElement;
+    const title = (formEl.querySelector('#title') as HTMLInputElement).value;
+    const description = (formEl.querySelector('#description') as HTMLTextAreaElement).value;
+    const budget = parseFloat((formEl.querySelector('#budget') as HTMLInputElement).value) || 0.0;
+    const location = (formEl.querySelector('#location') as HTMLInputElement).value;
+    const startDateVal = (formEl.querySelector('#startDate') as HTMLInputElement).value;
+
+    const locParts = location.split(',');
+    const city = locParts[1]?.trim() || 'Brooklyn';
+    const state = locParts[2]?.trim().split(' ')[0] || 'NY';
+    const zipCode = locParts[2]?.trim().split(' ')[1] || '11201';
+
+    const payload = {
+      title,
+      description,
+      category,
+      budget_type: budgetType,
+      budget_amount: budget,
+      location,
+      city,
+      state,
+      zip_code: zipCode,
+      urgency,
+      start_date: startDateVal ? new Date(startDateVal).toISOString() : new Date().toISOString(),
+      skills
+    };
+
+    try {
+      await apiClient.post('/jobs/', payload);
+      navigate('/customer-dashboard');
+    } catch (err: any) {
+      setError(err.message || 'Failed to post job');
+      setIsSubmitting(false);
+    }
   };
+
 
   return (
     <div className="min-h-screen bg-background">
@@ -72,7 +114,7 @@ export function JobPostingPage() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="category">Category</Label>
-                      <Select required>
+                      <Select required value={category} onValueChange={setCategory}>
                         <SelectTrigger>
                           <SelectValue placeholder="Select category" />
                         </SelectTrigger>
@@ -181,7 +223,7 @@ export function JobPostingPage() {
                   <div className="space-y-4">
                     <div className="space-y-2">
                       <Label htmlFor="urgency">Urgency Level</Label>
-                      <Select required>
+                      <Select required value={urgency} onValueChange={setUrgency}>
                         <SelectTrigger>
                           <SelectValue placeholder="Select urgency" />
                         </SelectTrigger>
@@ -203,8 +245,20 @@ export function JobPostingPage() {
                   </div>
 
                   <div className="flex gap-4">
-                    <Button type="submit" className="flex-1">
-                      Post Job
+                    {error && (
+                      <div className="text-red-500 text-sm w-full mb-4">
+                        {error}
+                      </div>
+                    )}
+                    <Button type="submit" className="flex-1" disabled={isSubmitting}>
+                      {isSubmitting ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Posting...
+                        </>
+                      ) : (
+                        'Post Job'
+                      )}
                     </Button>
                     <Button type="button" variant="outline" onClick={() => navigate(-1)}>
                       Cancel

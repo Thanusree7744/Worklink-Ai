@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Navbar } from '../components/worklink/Navbar';
 import { DashboardSidebar } from '../components/worklink/DashboardSidebar';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -14,8 +14,10 @@ import {
   TrendingUp,
   ArrowRight,
   Search,
+  Loader2,
 } from 'lucide-react';
-import { mockWorkers, mockJobs, customerDashboardStats } from '../data/mockData';
+import { apiClient } from '../services/api';
+import { customerDashboardStats } from '../data/mockData';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Link } from 'react-router';
 
@@ -28,8 +30,29 @@ const applicationsData = [
 
 export function CustomerDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const myJobs = mockJobs.slice(0, 3);
-  const recommendedWorkers = mockWorkers.filter((worker) => worker.matchScore && worker.matchScore >= 90).slice(0, 2);
+  const [myJobs, setMyJobs] = useState<any[]>([]);
+  const [recommendedWorkers, setRecommendedWorkers] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        setIsLoading(true);
+        const [jobsData, recsData] = await Promise.all([
+          apiClient.get<any[]>('/jobs'),
+          apiClient.get<any[]>('/recommendations/workers')
+        ]);
+        setMyJobs(jobsData.slice(0, 3));
+        setRecommendedWorkers(recsData.slice(0, 2));
+      } catch (err) {
+        console.error('Failed to load dashboard data', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchDashboardData();
+  }, []);
+
 
   return (
     <div className="min-h-screen bg-background">
@@ -176,11 +199,21 @@ export function CustomerDashboard() {
               </Button>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {recommendedWorkers.map((worker) => (
-                  <WorkerCard key={worker.id} worker={worker} showMatchScore />
-                ))}
-              </div>
+              {isLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 text-primary animate-spin" />
+                </div>
+              ) : recommendedWorkers.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground text-sm">
+                  No recommended workers found.
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {recommendedWorkers.map((worker) => (
+                    <WorkerCard key={worker.id} worker={worker} showMatchScore />
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -190,26 +223,36 @@ export function CustomerDashboard() {
               <CardTitle>My Active Jobs</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {myJobs.map((job) => (
-                  <div key={job.id} className="flex items-start justify-between p-4 border rounded-lg">
-                    <div className="flex-1">
-                      <h4 className="font-semibold mb-1">{job.title}</h4>
-                      <p className="text-sm text-muted-foreground mb-2">{job.description}</p>
-                      <div className="flex items-center gap-4 text-sm">
-                        <Badge variant={job.status === 'open' ? 'default' : 'secondary'}>
-                          {job.status.replace('_', ' ')}
-                        </Badge>
-                        <span className="text-muted-foreground">{job.applicants} applicants</span>
-                        <span className="text-muted-foreground">Posted {new Date(job.postedDate).toLocaleDateString()}</span>
+              {isLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 text-primary animate-spin" />
+                </div>
+              ) : myJobs.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground text-sm">
+                  No active jobs found. Post a new job to find workers!
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {myJobs.map((job) => (
+                    <div key={job.id} className="flex items-start justify-between p-4 border rounded-lg">
+                      <div className="flex-1">
+                        <h4 className="font-semibold mb-1">{job.title}</h4>
+                        <p className="text-sm text-muted-foreground mb-2">{job.description}</p>
+                        <div className="flex items-center gap-4 text-sm">
+                          <Badge variant={job.status === 'open' ? 'default' : 'secondary'}>
+                            {job.status.replace('_', ' ')}
+                          </Badge>
+                          <span className="text-muted-foreground">{job.applicants} applicants</span>
+                          <span className="text-muted-foreground">Posted {job.postedDate ? new Date(job.postedDate).toLocaleDateString() : 'N/A'}</span>
+                        </div>
                       </div>
+                      <Button variant="outline" size="sm" asChild>
+                        <Link to={`/job/${job.id}`}>View</Link>
+                      </Button>
                     </div>
-                    <Button variant="outline" size="sm" asChild>
-                      <Link to={`/job/${job.id}`}>View</Link>
-                    </Button>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
               <Button variant="outline" className="w-full mt-4" asChild>
                 <Link to="/my-postings">View All Jobs</Link>
               </Button>

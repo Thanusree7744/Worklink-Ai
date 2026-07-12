@@ -108,6 +108,7 @@ class Job(Base):
     status = Column(String(50), default='open')
 
     skills = relationship('Skill', secondary=job_skill_association, back_populates='jobs')
+    customer = relationship('Customer')
 
 
 class Review(Base):

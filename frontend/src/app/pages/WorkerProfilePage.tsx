@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router';
 import { Navbar } from '../components/worklink/Navbar';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -23,8 +23,9 @@ import {
   Award,
   TrendingUp,
   ThumbsUp,
+  Loader2,
 } from 'lucide-react';
-import { mockWorkers } from '../data/mockData';
+import { apiClient } from '../services/api';
 import { AIMatchBadge } from '../components/worklink/AIMatchBadge';
 
 const portfolioImages = [
@@ -98,8 +99,55 @@ const ratingBreakdown = [
 
 export function WorkerProfilePage() {
   const { id } = useParams();
-  const worker = mockWorkers.find((w) => w.id === id) || mockWorkers[0];
+  const [worker, setWorker] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    const fetchWorker = async () => {
+      try {
+        setIsLoading(true);
+        const data = await apiClient.get<any>(`/workers/${id}`);
+        setWorker(data);
+        setError(null);
+      } catch (err: any) {
+        setError(err.message || 'Failed to load profile details');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    if (id) {
+      fetchWorker();
+    }
+  }, [id]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <Navbar userType="customer" />
+        <div className="flex-1 flex items-center justify-center">
+          <Loader2 className="w-8 h-8 text-primary animate-spin" />
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !worker) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <Navbar userType="customer" />
+        <div className="flex-1 flex flex-col items-center justify-center p-4">
+          <h2 className="text-xl font-semibold mb-2">Worker profile not found</h2>
+          <p className="text-muted-foreground mb-4">{error || 'Could not load details'}</p>
+          <Link to="/find-workers">
+            <Button>Back to Search</Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
 
   const availColor =
     worker.availability === 'available'
@@ -252,7 +300,7 @@ export function WorkerProfilePage() {
                   </CardHeader>
                   <CardContent>
                     <div className="flex flex-wrap gap-2 mb-3">
-                      {worker.skills.map((skill, i) => (
+                      {worker.skills.map((skill: string, i: number) => (
                         <Badge key={i} variant="secondary" className="px-3 py-1">
                           {skill}
                         </Badge>
