@@ -118,3 +118,27 @@ class ReviewRead(ReviewCreate):
 
     class Config:
         orm_mode = True
+
+
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+    role: str
+
+
+class UserResponse(BaseModel):
+    id: str
+    email: str
+    name: str
+    role: str
+    avatar: Optional[str] = None
+    verified: Optional[bool] = False
+
+    class Config:
+        orm_mode = True
+
+
+class AuthResponse(BaseModel):
+    token: str
+    user: UserResponse
+
