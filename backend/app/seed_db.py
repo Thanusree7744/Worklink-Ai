@@ -42,6 +42,19 @@ def seed():
     db.commit()
     db.refresh(customer_user)
 
+    # Create Admin User
+    admin_pwd = get_password_hash("securepassword123")
+    admin_user = models.User(
+        email="admin@example.com",
+        hashed_password=admin_pwd,
+        role="admin",
+        first_name="Admin",
+        last_name="User"
+    )
+    db.add(admin_user)
+    db.commit()
+    db.refresh(admin_user)
+
     customer_profile = models.Customer(
         user_id=customer_user.id,
         company_name="Acme Home Services",

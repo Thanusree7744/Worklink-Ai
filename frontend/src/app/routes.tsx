@@ -15,6 +15,17 @@ import { AdminDashboard } from './pages/AdminDashboard';
 import { NotFound } from './pages/NotFound';
 import RequireAuth from './components/RequireAuth';
 
+// New missing tab pages
+import { FindJobsPage } from './pages/FindJobsPage';
+import { MyJobsPage } from './pages/MyJobsPage';
+import { MessagesPage } from './pages/MessagesPage';
+import { ReviewsPage } from './pages/ReviewsPage';
+import { MyPostingsPage } from './pages/MyPostingsPage';
+import { AdminUsersPage } from './pages/AdminUsersPage';
+import { AdminJobsPage } from './pages/AdminJobsPage';
+import { AdminAnalyticsPage } from './pages/AdminAnalyticsPage';
+import { AdminSettingsPage } from './pages/AdminSettingsPage';
+
 export const router = createBrowserRouter([
   {
     path: '/',
@@ -89,6 +100,46 @@ export const router = createBrowserRouter([
     ),
   },
   {
+    path: '/jobs',
+    Component: () => (
+      <RequireAuth requiredRole="worker">
+        <FindJobsPage />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: '/my-jobs',
+    Component: () => (
+      <RequireAuth requiredRole="worker">
+        <MyJobsPage />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: '/messages',
+    Component: () => (
+      <RequireAuth>
+        <MessagesPage />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: '/reviews',
+    Component: () => (
+      <RequireAuth requiredRole="worker">
+        <ReviewsPage />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: '/my-postings',
+    Component: () => (
+      <RequireAuth requiredRole="customer">
+        <MyPostingsPage />
+      </RequireAuth>
+    ),
+  },
+  {
     path: '/admin-dashboard',
     Component: () => (
       <RequireAuth requiredRole="admin">
@@ -97,7 +148,40 @@ export const router = createBrowserRouter([
     ),
   },
   {
+    path: '/admin/users',
+    Component: () => (
+      <RequireAuth requiredRole="admin">
+        <AdminUsersPage />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: '/admin/jobs',
+    Component: () => (
+      <RequireAuth requiredRole="admin">
+        <AdminJobsPage />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: '/admin/analytics',
+    Component: () => (
+      <RequireAuth requiredRole="admin">
+        <AdminAnalyticsPage />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: '/admin/settings',
+    Component: () => (
+      <RequireAuth requiredRole="admin">
+        <AdminSettingsPage />
+      </RequireAuth>
+    ),
+  },
+  {
     path: '*',
     Component: NotFound,
   },
 ]);
+
