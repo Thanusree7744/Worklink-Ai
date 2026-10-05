@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../co
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Link } from 'react-router';
-import { MapPin, DollarSign, Calendar, Users, Eye, Edit3, CheckCircle2, UserCheck, MessageSquare } from 'lucide-react';
+import { MapPin, DollarSign, Calendar, Users, Eye, Edit3, CheckCircle2, UserCheck, XCircle, MessageSquare, Loader2 } from 'lucide-react';
 import { apiClient } from '../services/api';
 import { Job } from '../data/mockData';
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
@@ -16,51 +16,68 @@ export function MyPostingsPage() {
   const [postings, setPostings] = useState<Job[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+  const [applicants, setApplicants] = useState<any[]>([]);
+  const [loadingApplicants, setLoadingApplicants] = useState(false);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+
+  const fetchPostings = async () => {
+    try {
+      setIsLoading(true);
+      const data = await apiClient.get<Job[]>('/jobs/user/my-postings').catch(() => apiClient.get<Job[]>('/jobs'));
+      setPostings(data);
+      if (data.length > 0) {
+        setSelectedJobId(data[0].id);
+      }
+    } catch (err) {
+      console.error('Failed to load postings', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchPostings = async () => {
-      try {
-        const data = await apiClient.get<Job[]>('/jobs');
-        setPostings(data);
-        if (data.length > 0) {
-          setSelectedJobId(data[0].id);
-        }
-      } catch (err) {
-        console.error('Failed to load postings', err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
     fetchPostings();
   }, []);
 
-  const activeJob = postings.find(p => p.id === selectedJobId) || postings[0];
+  useEffect(() => {
+    const fetchApplicants = async () => {
+      if (!selectedJobId) return;
+      try {
+        setLoadingApplicants(true);
+        const data = await apiClient.get<any[]>(`/jobs/${selectedJobId}/applications`);
+        setApplicants(data);
+      } catch (err) {
+        console.error('Failed to load applicants', err);
+        setApplicants([]);
+      } finally {
+        setLoadingApplicants(false);
+      }
+    };
+    fetchApplicants();
+  }, [selectedJobId]);
 
-  // Simulating applicants for the selected job
-  const mockApplicants = [
-    {
-      id: 'worker-1',
-      name: 'Sarah Johnson',
-      title: 'Professional Plumber',
-      rating: 4.9,
-      reviewCount: 127,
-      hourlyRate: 75,
-      matchScore: 96,
-      avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330',
-      skills: ['Plumbing', 'Pipe Installation', 'Emergency Repairs']
-    },
-    {
-      id: 'worker-2',
-      name: 'Michael Chen',
-      title: 'Certified Electrician',
-      rating: 4.8,
-      reviewCount: 98,
-      hourlyRate: 85,
-      matchScore: 89,
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d',
-      skills: ['Electrical Wiring', 'Home Automation']
+  const handleStatusUpdate = async (appId: string, status: 'accepted' | 'rejected') => {
+    try {
+      setActionLoading(appId);
+      await apiClient.patch(`/jobs/applications/${appId}/status`, { status });
+      // Update applicant state locally
+      setApplicants((prev) =>
+        prev.map((app) => (app.id === appId ? { ...app, status } : app))
+      );
+      // If hired, update job status
+      if (status === 'accepted') {
+        setPostings((prev) =>
+          prev.map((j) => (j.id === selectedJobId ? { ...j, status: 'in_progress' } : j))
+        );
+      }
+    } catch (err: any) {
+      alert(err.message || 'Failed to update application status');
+    } finally {
+      setActionLoading(null);
     }
-  ];
+  };
+
+  const activeJob = postings.find((p) => p.id === selectedJobId) || postings[0];
 
   return (
     <div className="min-h-screen bg-background">
@@ -83,12 +100,17 @@ export function MyPostingsPage() {
           </div>
 
           {isLoading ? (
-            <div className="text-center py-12 text-muted-foreground">Loading postings...</div>
+            <div className="text-center py-12 text-muted-foreground">
+              <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2 text-primary" />
+              Loading your postings...
+            </div>
           ) : postings.length === 0 ? (
             <Card className="text-center p-12">
               <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
               <CardTitle className="mb-2">No jobs posted yet</CardTitle>
-              <CardDescription className="mb-6">You haven't posted any job listings. Post a job to start matching with service workers.</CardDescription>
+              <CardDescription className="mb-6">
+                You haven't posted any job listings. Post a job to start matching with service workers.
+              </CardDescription>
               <Button asChild>
                 <Link to="/post-job">Post a Job Now</Link>
               </Button>
@@ -97,7 +119,7 @@ export function MyPostingsPage() {
             <div className="grid lg:grid-cols-3 gap-6">
               {/* Left Column: Postings list */}
               <div className="space-y-4 lg:col-span-1">
-                <h3 className="font-bold text-sm text-muted-foreground mb-2">Your Postings</h3>
+                <h3 className="font-bold text-sm text-muted-foreground mb-2">Your Postings ({postings.length})</h3>
                 {postings.map((job) => (
                   <button
                     key={job.id}
@@ -110,12 +132,16 @@ export function MyPostingsPage() {
                   >
                     <div className="flex justify-between items-start mb-2">
                       <span className="text-xs text-muted-foreground">{job.category}</span>
-                      <Badge className={
-                        job.status === 'open' ? 'bg-green-500 hover:bg-green-600' :
-                        job.status === 'in_progress' ? 'bg-blue-500 hover:bg-blue-600' :
-                        'bg-gray-500 hover:bg-gray-600'
-                      }>
-                        {job.status}
+                      <Badge
+                        className={
+                          job.status === 'open'
+                            ? 'bg-green-500 hover:bg-green-600'
+                            : job.status === 'in_progress'
+                            ? 'bg-blue-500 hover:bg-blue-600'
+                            : 'bg-gray-500 hover:bg-gray-600'
+                        }
+                      >
+                        {job.status.replace('_', ' ')}
                       </Badge>
                     </div>
                     <h4 className="font-bold text-sm text-foreground mb-1 truncate">{job.title}</h4>
@@ -140,11 +166,15 @@ export function MyPostingsPage() {
                           <div>
                             <div className="flex items-center gap-2 mb-2">
                               <Badge variant="outline">{activeJob.category}</Badge>
-                              <Badge className={
-                                activeJob.urgency === 'high' ? 'bg-red-100 text-red-800 hover:bg-red-100' :
-                                activeJob.urgency === 'medium' ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-100' :
-                                'bg-green-100 text-green-800 hover:bg-green-100'
-                              }>
+                              <Badge
+                                className={
+                                  activeJob.urgency === 'high'
+                                    ? 'bg-red-100 text-red-800 hover:bg-red-100'
+                                    : activeJob.urgency === 'medium'
+                                    ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-100'
+                                    : 'bg-green-100 text-green-800 hover:bg-green-100'
+                                }
+                              >
                                 {activeJob.urgency} priority
                               </Badge>
                             </div>
@@ -154,15 +184,18 @@ export function MyPostingsPage() {
                             </CardDescription>
                           </div>
                           <div className="flex gap-2">
-                            <Button variant="outline" size="sm"><Edit3 className="w-4 h-4 mr-1.5" /> Edit</Button>
                             <Button variant="outline" size="sm" asChild>
-                              <Link to={`/job/${activeJob.id}`}><Eye className="w-4 h-4 mr-1.5" /> View</Link>
+                              <Link to={`/job/${activeJob.id}`}>
+                                <Eye className="w-4 h-4 mr-1.5" /> Public View
+                              </Link>
                             </Button>
                           </div>
                         </div>
                       </CardHeader>
                       <CardContent>
-                        <p className="text-sm text-muted-foreground mb-4 leading-relaxed">{activeJob.description}</p>
+                        <p className="text-sm text-muted-foreground mb-4 leading-relaxed whitespace-pre-line">
+                          {activeJob.description}
+                        </p>
                         <div className="flex flex-wrap gap-4 text-sm bg-muted/40 p-3 rounded-lg">
                           <div className="flex items-center gap-1">
                             <DollarSign className="w-4 h-4 text-muted-foreground" />
@@ -170,7 +203,8 @@ export function MyPostingsPage() {
                             <span className="text-xs text-muted-foreground capitalize">({activeJob.budgetType})</span>
                           </div>
                           <div className="flex items-center gap-1 text-muted-foreground">
-                            <Calendar className="w-4 h-4" /> Posted {new Date(activeJob.postedDate).toLocaleDateString()}
+                            <Calendar className="w-4 h-4" /> Posted{' '}
+                            {activeJob.postedDate ? new Date(activeJob.postedDate).toLocaleDateString() : 'Recently'}
                           </div>
                         </div>
                       </CardContent>
@@ -178,51 +212,112 @@ export function MyPostingsPage() {
 
                     {/* Applicants list for the active job */}
                     <div>
-                      <h3 className="font-bold text-sm text-muted-foreground mb-4">Applicants Matching This Job ({mockApplicants.length})</h3>
-                      <div className="space-y-4">
-                        {mockApplicants.map((worker) => (
-                          <Card key={worker.id} className="hover:shadow-sm transition-all border-l-4 border-l-primary/70">
-                            <CardContent className="p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                              <div className="flex items-start sm:items-center gap-3">
-                                <Avatar className="w-12 h-12 border">
-                                  <AvatarImage src={worker.avatar} alt={worker.name} />
-                                  <AvatarFallback>{worker.name[0]}</AvatarFallback>
-                                </Avatar>
-                                <div>
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <h4 className="font-semibold text-base text-foreground leading-none">{worker.name}</h4>
-                                    <AIMatchBadge score={worker.matchScore} size="sm" />
-                                  </div>
-                                  <p className="text-xs text-muted-foreground mt-1.5">{worker.title}</p>
-                                  <div className="flex items-center gap-1.5 mt-2 text-xs">
-                                    <span className="font-medium flex items-center gap-0.5 text-yellow-600">
-                                      ★ {worker.rating}
-                                    </span>
-                                    <span className="text-muted-foreground">({worker.reviewCount} reviews)</span>
-                                    <span className="text-muted-foreground">•</span>
-                                    <span className="font-semibold text-foreground">${worker.hourlyRate}/hr</span>
+                      <h3 className="font-bold text-sm text-muted-foreground mb-4">
+                        Candidates & Proposals ({applicants.length})
+                      </h3>
+                      {loadingApplicants ? (
+                        <div className="text-center py-8 text-muted-foreground">
+                          <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-primary" />
+                          Loading applicants...
+                        </div>
+                      ) : applicants.length === 0 ? (
+                        <Card className="p-8 text-center text-muted-foreground">
+                          <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                          <p>No candidates have applied to this posting yet.</p>
+                          <p className="text-xs mt-1">Workers matching your requirements will appear here.</p>
+                        </Card>
+                      ) : (
+                        <div className="space-y-4">
+                          {applicants.map((app) => (
+                            <Card
+                              key={app.id}
+                              className={`transition-all border-l-4 ${
+                                app.status === 'accepted'
+                                  ? 'border-l-green-500 bg-green-50/20'
+                                  : app.status === 'rejected'
+                                  ? 'border-l-gray-300 opacity-60'
+                                  : 'border-l-primary/70'
+                              }`}
+                            >
+                              <CardContent className="p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                                <div className="flex items-start sm:items-center gap-3">
+                                  <Avatar className="w-12 h-12 border">
+                                    <AvatarImage src={app.workerAvatar} alt={app.workerName} />
+                                    <AvatarFallback>{app.workerName ? app.workerName[0] : 'W'}</AvatarFallback>
+                                  </Avatar>
+                                  <div>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <h4 className="font-semibold text-base text-foreground leading-none">
+                                        {app.workerName}
+                                      </h4>
+                                      <Badge
+                                        variant="outline"
+                                        className={
+                                          app.status === 'accepted'
+                                            ? 'bg-green-100 text-green-800'
+                                            : app.status === 'rejected'
+                                            ? 'bg-gray-100 text-gray-800'
+                                            : 'bg-blue-100 text-blue-800'
+                                        }
+                                      >
+                                        {app.status}
+                                      </Badge>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground mt-1.5">{app.workerTitle}</p>
+                                    {app.coverLetter && (
+                                      <p className="text-xs text-muted-foreground mt-2 italic bg-muted/50 p-2 rounded">
+                                        "{app.coverLetter}"
+                                      </p>
+                                    )}
+                                    <div className="flex items-center gap-2 mt-2 text-xs">
+                                      <span className="font-semibold text-foreground">
+                                        Proposed: ${app.proposedRate}
+                                      </span>
+                                      <span className="text-muted-foreground">•</span>
+                                      <span className="text-muted-foreground">
+                                        Applied {new Date(app.createdAt).toLocaleDateString()}
+                                      </span>
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                              <div className="flex flex-row md:flex-col gap-2 w-full md:w-auto">
-                                <Button size="sm" className="flex-1 md:flex-initial" asChild>
-                                  <Link to={`/worker/${worker.id}`}>
-                                    <Eye className="w-4 h-4 mr-1.5" /> Profile
-                                  </Link>
-                                </Button>
-                                <Button size="sm" variant="outline" className="flex-1 md:flex-initial" asChild>
-                                  <Link to="/messages">
-                                    <MessageSquare className="w-4 h-4 mr-1.5" /> Message
-                                  </Link>
-                                </Button>
-                                <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white flex-1 md:flex-initial">
-                                  <UserCheck className="w-4 h-4 mr-1.5" /> Hire Sarah
-                                </Button>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        ))}
-                      </div>
+                                <div className="flex flex-row md:flex-col gap-2 w-full md:w-auto">
+                                  <Button size="sm" variant="outline" asChild>
+                                    <Link to={`/worker/${app.workerId}`}>
+                                      <Eye className="w-4 h-4 mr-1.5" /> Profile
+                                    </Link>
+                                  </Button>
+                                  <Button size="sm" variant="outline" asChild>
+                                    <Link to="/messages">
+                                      <MessageSquare className="w-4 h-4 mr-1.5" /> Message
+                                    </Link>
+                                  </Button>
+                                  {app.status === 'pending' && (
+                                    <div className="flex gap-1.5">
+                                      <Button
+                                        size="sm"
+                                        className="bg-green-600 hover:bg-green-700 text-white flex-1"
+                                        disabled={actionLoading === app.id}
+                                        onClick={() => handleStatusUpdate(app.id, 'accepted')}
+                                      >
+                                        <UserCheck className="w-4 h-4 mr-1" /> Hire
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="text-red-600 hover:bg-red-50 flex-1"
+                                        disabled={actionLoading === app.id}
+                                        onClick={() => handleStatusUpdate(app.id, 'rejected')}
+                                      >
+                                        <XCircle className="w-4 h-4 mr-1" /> Decline
+                                      </Button>
+                                    </div>
+                                  )}
+                                </div>
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </>
                 )}

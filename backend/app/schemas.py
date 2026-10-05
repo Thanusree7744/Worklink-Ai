@@ -25,7 +25,7 @@ class UserRead(BaseModel):
     last_name: Optional[str]
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class SkillBase(BaseModel):
@@ -36,7 +36,7 @@ class SkillRead(SkillBase):
     id: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class WorkerCreate(BaseModel):
@@ -67,7 +67,7 @@ class WorkerRead(BaseModel):
     skills: List[SkillRead] = []
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class JobCreate(BaseModel):
@@ -102,7 +102,7 @@ class JobRead(BaseModel):
     skills: List[SkillRead] = []
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class ReviewCreate(BaseModel):
@@ -117,13 +117,13 @@ class ReviewRead(ReviewCreate):
     created_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
-    role: str
+    role: Optional[str] = None
 
 
 class UserResponse(BaseModel):
@@ -135,7 +135,7 @@ class UserResponse(BaseModel):
     verified: Optional[bool] = False
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class AuthResponse(BaseModel):
@@ -164,7 +164,7 @@ class WorkerResponse(BaseModel):
     matchScore: Optional[float] = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class JobResponse(BaseModel):
@@ -184,6 +184,34 @@ class JobResponse(BaseModel):
     matchScore: Optional[float] = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
+
+
+class ApplicationCreate(BaseModel):
+    cover_letter: Optional[str] = None
+    proposed_rate: Optional[float] = 0.0
+
+
+class ApplicationStatusUpdate(BaseModel):
+    status: str  # accepted, rejected, withdrawn
+
+
+class ApplicationResponse(BaseModel):
+    id: str
+    jobId: str
+    workerId: str
+    workerName: Optional[str] = None
+    workerTitle: Optional[str] = None
+    workerAvatar: Optional[str] = None
+    workerRating: Optional[float] = 0.0
+    coverLetter: Optional[str] = None
+    proposedRate: float = 0.0
+    status: str
+    createdAt: str
+    job: Optional[JobResponse] = None
+
+    class Config:
+        from_attributes = True
+
 
 

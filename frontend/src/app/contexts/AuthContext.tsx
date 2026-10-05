@@ -58,7 +58,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     checkAuth();
   }, []);
 
-  const login = async (email: string, password: string, role: UserRole) => {
+  const login = async (email: string, password: string, role?: UserRole) => {
     setIsLoading(true);
     setError(null);
 
@@ -67,8 +67,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         token: string;
         user: User;
       }>('/auth/login', {
-        email,
-        password,
+        email: email.trim().toLowerCase(),
+        password: password.trim(),
         role,
       });
 

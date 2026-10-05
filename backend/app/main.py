@@ -5,6 +5,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
+from app.db.session import engine, SessionLocal
+from app import models
+from app.seed_db import seed
 from app.api.routers import auth, users, jobs, workers, recommendations, uploads, reviews, ping
 
 app = FastAPI(title="WorkLink AI Backend")
@@ -17,9 +20,30 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.on_event("startup")
+def on_startup():
+    # Ensure database tables exist
+    models.Base.metadata.create_all(bind=engine)
+    # Check if database has users; if not, seed automatically
+    db = SessionLocal()
+    try:
+        user_count = db.query(models.User).count()
+        if user_count == 0:
+            print("[STARTUP] Database is empty. Seeding initial demo data...")
+            seed()
+            print("[STARTUP] Demo data seeded successfully.")
+    except Exception as e:
+        print(f"[STARTUP] Error checking/seeding database: {e}")
+    finally:
+        db.close()
+
+
 # Ensure uploads dir
 os.makedirs(settings.UPLOADS_DIR, exist_ok=True)
-app.mount("/static", StaticFiles(directory="static"), name="static")
+static_dir = os.path.join(os.path.dirname(__file__), "..", "static")
+os.makedirs(static_dir, exist_ok=True)
+app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(users.router, prefix="/api/users", tags=["users"])

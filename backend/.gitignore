@@ -5,6 +5,7 @@ __pycache__/
 *.pyc
 static/uploads/*
 *.sqlite3
+*.db
 /.idea
 /.vscode
 dist/

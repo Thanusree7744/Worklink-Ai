@@ -1,1 +1,1 @@
-from . import main  # expose app package
+# WorkLink AI App Package

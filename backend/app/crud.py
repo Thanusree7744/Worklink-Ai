@@ -15,8 +15,13 @@ def create_user(db: Session, user_in: schemas.UserCreate):
     return user
 
 
+from sqlalchemy import func
+
 def get_user_by_email(db: Session, email: str):
-    return db.query(models.User).filter(models.User.email == email).first()
+    if not email:
+        return None
+    cleaned = email.strip().lower()
+    return db.query(models.User).filter(func.lower(models.User.email) == cleaned).first()
 
 
 def get_user(db: Session, user_id: int):
@@ -99,3 +104,59 @@ def create_review(db: Session, review_in: schemas.ReviewCreate, customer_id: int
         db.add(worker)
         db.commit()
     return review
+
+
+def create_job_application(db: Session, job_id: int, worker_id: int, app_in: schemas.ApplicationCreate):
+    existing = db.query(models.JobApplication).filter(
+        models.JobApplication.job_id == job_id,
+        models.JobApplication.worker_id == worker_id
+    ).first()
+    if existing:
+        return existing
+    app = models.JobApplication(
+        job_id=job_id,
+        worker_id=worker_id,
+        cover_letter=app_in.cover_letter,
+        proposed_rate=app_in.proposed_rate or 0.0,
+        status='pending'
+    )
+    db.add(app)
+    db.commit()
+    db.refresh(app)
+    return app
+
+
+def get_job_application(db: Session, app_id: int):
+    return db.query(models.JobApplication).get(app_id)
+
+
+def get_worker_job_application(db: Session, job_id: int, worker_id: int):
+    return db.query(models.JobApplication).filter(
+        models.JobApplication.job_id == job_id,
+        models.JobApplication.worker_id == worker_id
+    ).first()
+
+
+def list_applications_for_job(db: Session, job_id: int):
+    return db.query(models.JobApplication).filter(models.JobApplication.job_id == job_id).all()
+
+
+def list_applications_for_worker(db: Session, worker_id: int):
+    return db.query(models.JobApplication).filter(models.JobApplication.worker_id == worker_id).order_by(models.JobApplication.created_at.desc()).all()
+
+
+def update_application_status(db: Session, app_id: int, status: str):
+    app = db.query(models.JobApplication).get(app_id)
+    if app:
+        app.status = status
+        # If accepted, also transition the job status to 'in_progress'
+        if status == 'accepted':
+            job = db.query(models.Job).get(app.job_id)
+            if job:
+                job.status = 'in_progress'
+                db.add(job)
+        db.add(app)
+        db.commit()
+        db.refresh(app)
+    return app
+

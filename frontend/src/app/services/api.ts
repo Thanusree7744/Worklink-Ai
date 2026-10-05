@@ -60,7 +60,14 @@ export class ApiClient {
 
       try {
         error.data = await response.json();
-        error.message = error.data?.message || error.message;
+        const detail = error.data?.detail;
+        if (typeof detail === 'string') {
+          error.message = detail;
+        } else if (Array.isArray(detail)) {
+          error.message = detail.map((d: any) => d.msg || JSON.stringify(d)).join(', ');
+        } else if (error.data?.message) {
+          error.message = error.data.message as string;
+        }
       } catch {
         // Response is not JSON
       }

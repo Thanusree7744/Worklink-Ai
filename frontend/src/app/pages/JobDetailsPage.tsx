@@ -7,24 +7,45 @@ import { Badge } from '../components/ui/badge';
 import { Avatar, AvatarFallback } from '../components/ui/avatar';
 import { WorkerCard } from '../components/worklink/WorkerCard';
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../components/ui/dialog';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+import { Textarea } from '../components/ui/textarea';
+import {
   MapPin,
   DollarSign,
   Clock,
   Users,
-  Calendar,
   AlertCircle,
   CheckCircle2,
   Loader2,
+  Send,
 } from 'lucide-react';
 import { apiClient } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 import { AIMatchBadge } from '../components/worklink/AIMatchBadge';
 
 export function JobDetailsPage() {
   const { id } = useParams();
+  const { user } = useAuth();
   const [job, setJob] = useState<any>(null);
   const [recommendedWorkers, setRecommendedWorkers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Application state
+  const [isApplyOpen, setIsApplyOpen] = useState(false);
+  const [proposedRate, setProposedRate] = useState<string>('');
+  const [coverLetter, setCoverLetter] = useState<string>('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [hasApplied, setHasApplied] = useState(false);
+  const [myApplication, setMyApplication] = useState<any>(null);
 
   useEffect(() => {
     const fetchJobDetails = async () => {
@@ -32,10 +53,24 @@ export function JobDetailsPage() {
         setIsLoading(true);
         const [jobData, recsData] = await Promise.all([
           apiClient.get<any>(`/jobs/${id}`),
-          apiClient.get<any>(`/recommendations/job/${id}`)
+          apiClient.get<any>(`/recommendations/job/${id}`).catch(() => ({ recommendations: [] }))
         ]);
         setJob(jobData);
+        setProposedRate(jobData.budget?.toString() || '');
         setRecommendedWorkers((recsData.recommendations || []).map((r: any) => r.worker));
+        
+        // If worker is logged in, check if they already applied
+        if (user?.role === 'worker') {
+          try {
+            const checkData = await apiClient.get<any>(`/jobs/${id}/my-application`);
+            if (checkData.applied) {
+              setHasApplied(true);
+              setMyApplication(checkData.application);
+            }
+          } catch {
+            // Ignore check failure
+          }
+        }
         setError(null);
       } catch (err: any) {
         setError(err.message || 'Failed to load job details');
@@ -46,12 +81,33 @@ export function JobDetailsPage() {
     if (id) {
       fetchJobDetails();
     }
-  }, [id]);
+  }, [id, user]);
+
+  const handleApplySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!id) return;
+    try {
+      setIsSubmitting(true);
+      const app = await apiClient.post<any>(`/jobs/${id}/apply`, {
+        proposed_rate: parseFloat(proposedRate) || job.budget,
+        cover_letter: coverLetter,
+      });
+      setHasApplied(true);
+      setMyApplication(app);
+      setIsApplyOpen(false);
+      // Increment applicant count on UI
+      setJob((prev: any) => prev ? { ...prev, applicants: (prev.applicants || 0) + 1 } : prev);
+    } catch (err: any) {
+      alert(err.message || 'Failed to submit application');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex flex-col">
-        <Navbar userType="worker" />
+        <Navbar userType={user?.role === 'customer' ? 'customer' : 'worker'} />
         <div className="flex-1 flex items-center justify-center">
           <Loader2 className="w-8 h-8 text-primary animate-spin" />
         </div>
@@ -62,18 +118,17 @@ export function JobDetailsPage() {
   if (error || !job) {
     return (
       <div className="min-h-screen bg-background flex flex-col">
-        <Navbar userType="worker" />
+        <Navbar userType={user?.role === 'customer' ? 'customer' : 'worker'} />
         <div className="flex-1 flex flex-col items-center justify-center p-4">
           <h2 className="text-xl font-semibold mb-2">Job not found</h2>
           <p className="text-muted-foreground mb-4">{error || 'Could not load details'}</p>
-          <Link to="/worker-dashboard">
-            <Button>Back to Dashboard</Button>
+          <Link to="/jobs">
+            <Button>Back to Jobs</Button>
           </Link>
         </div>
       </div>
     );
   }
-
 
   const getUrgencyColor = () => {
     if (job.urgency === 'high') return 'bg-red-100 text-red-800';
@@ -90,7 +145,7 @@ export function JobDetailsPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar userType="worker" />
+      <Navbar userType={user?.role === 'customer' ? 'customer' : 'worker'} />
       <main className="container mx-auto px-4 py-8">
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Main Content */}
@@ -141,7 +196,7 @@ export function JobDetailsPage() {
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Posted</p>
-                      <p className="font-semibold">{new Date(job.postedDate).toLocaleDateString()}</p>
+                      <p className="font-semibold">{job.postedDate ? new Date(job.postedDate).toLocaleDateString() : 'Recently'}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
@@ -158,18 +213,22 @@ export function JobDetailsPage() {
                 {/* Description */}
                 <div>
                   <h3 className="font-semibold mb-2">Job Description</h3>
-                  <p className="text-muted-foreground">{job.description}</p>
+                  <p className="text-muted-foreground whitespace-pre-line">{job.description}</p>
                 </div>
 
                 {/* Required Skills */}
                 <div>
                   <h3 className="font-semibold mb-3">Required Skills</h3>
                   <div className="flex flex-wrap gap-2">
-                    {job.requiredSkills.map((skill: string, index: number) => (
-                      <Badge key={index} variant="secondary">
-                        {skill}
-                      </Badge>
-                    ))}
+                    {job.requiredSkills && job.requiredSkills.length > 0 ? (
+                      job.requiredSkills.map((skill: string, index: number) => (
+                        <Badge key={index} variant="secondary">
+                          {skill}
+                        </Badge>
+                      ))
+                    ) : (
+                      <span className="text-sm text-muted-foreground">No specific skills listed</span>
+                    )}
                   </div>
                 </div>
 
@@ -178,11 +237,11 @@ export function JobDetailsPage() {
                   <h3 className="font-semibold mb-3">Posted By</h3>
                   <div className="flex items-center gap-3">
                     <Avatar>
-                      <AvatarFallback>{job.postedBy[0]}</AvatarFallback>
+                      <AvatarFallback>{job.postedBy ? job.postedBy[0] : 'C'}</AvatarFallback>
                     </Avatar>
                     <div>
                       <p className="font-medium">{job.postedBy}</p>
-                      <p className="text-sm text-muted-foreground">Member since 2024</p>
+                      <p className="text-sm text-muted-foreground">Verified Client</p>
                     </div>
                   </div>
                 </div>
@@ -190,46 +249,70 @@ export function JobDetailsPage() {
             </Card>
 
             {/* AI Recommended Workers */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <CheckCircle2 className="w-5 h-5 text-primary" />
-                  AI Recommended Workers for This Job
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {recommendedWorkers.map((worker) => (
-                  <WorkerCard key={worker.id} worker={worker} showMatchScore />
-                ))}
-              </CardContent>
-            </Card>
+            {recommendedWorkers.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-primary" />
+                    AI Recommended Workers for This Job
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {recommendedWorkers.map((worker) => (
+                    <WorkerCard key={worker.id} worker={worker} showMatchScore />
+                  ))}
+                </CardContent>
+              </Card>
+            )}
           </div>
 
           {/* Sidebar */}
           <div className="space-y-6">
             <Card>
               <CardContent className="p-6 space-y-4">
-                {job.status === 'open' && (
-                  <>
-                    <Button className="w-full" size="lg">
-                      <AlertCircle className="w-5 h-5 mr-2" />
-                      Apply for This Job
-                    </Button>
-                    <Button variant="outline" className="w-full">
-                      Save Job
-                    </Button>
-                  </>
-                )}
-                {job.status === 'in_progress' && (
-                  <div className="text-center p-4 bg-blue-50 rounded-lg">
-                    <p className="font-medium text-blue-900">Job In Progress</p>
-                    <p className="text-sm text-blue-700 mt-1">This job is currently being worked on</p>
+                {hasApplied ? (
+                  <div className="p-4 bg-green-50 border border-green-200 rounded-lg text-center space-y-2">
+                    <CheckCircle2 className="w-8 h-8 text-green-600 mx-auto" />
+                    <p className="font-semibold text-green-900">Application Submitted</p>
+                    <p className="text-sm text-green-700">
+                      Status: <span className="capitalize font-medium">{myApplication?.status || 'Pending'}</span>
+                    </p>
+                    <Link to="/my-jobs">
+                      <Button variant="outline" size="sm" className="mt-2 w-full">
+                        View in My Jobs
+                      </Button>
+                    </Link>
                   </div>
-                )}
-                {job.status === 'completed' && (
-                  <div className="text-center p-4 bg-gray-50 rounded-lg">
-                    <CheckCircle2 className="w-8 h-8 text-gray-600 mx-auto mb-2" />
-                    <p className="font-medium text-gray-900">Job Completed</p>
+                ) : user?.role === 'worker' ? (
+                  job.status === 'open' ? (
+                    <>
+                      <Button className="w-full" size="lg" onClick={() => setIsApplyOpen(true)}>
+                        <Send className="w-5 h-5 mr-2" />
+                        Apply for This Job
+                      </Button>
+                      <Link to="/jobs">
+                        <Button variant="outline" className="w-full mt-2">
+                          Browse More Jobs
+                        </Button>
+                      </Link>
+                    </>
+                  ) : (
+                    <div className="text-center p-4 bg-muted rounded-lg">
+                      <p className="font-medium">This job is {job.status.replace('_', ' ')}</p>
+                    </div>
+                  )
+                ) : (
+                  <div className="space-y-3">
+                    <p className="text-sm text-muted-foreground">Logged in as {user?.role || 'Guest'}</p>
+                    {user?.role === 'customer' ? (
+                      <Link to="/my-postings">
+                        <Button className="w-full">Manage My Postings</Button>
+                      </Link>
+                    ) : (
+                      <Link to="/login">
+                        <Button className="w-full">Sign in to Apply</Button>
+                      </Link>
+                    )}
                   </div>
                 )}
               </CardContent>
@@ -243,47 +326,78 @@ export function JobDetailsPage() {
                 <div className="flex items-start gap-3">
                   <div className="w-2 h-2 bg-primary rounded-full mt-2"></div>
                   <div>
-                    <p className="font-medium">High Competition</p>
+                    <p className="font-medium">Applicant Activity</p>
                     <p className="text-sm text-muted-foreground">
-                      {job.applicants} workers have applied
+                      {job.applicants} {job.applicants === 1 ? 'worker has' : 'workers have'} applied
                     </p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
-                  <div className="w-2 h-2 bg-accent rounded-full mt-2"></div>
+                  <div className="w-2 h-2 bg-emerald-500 rounded-full mt-2"></div>
                   <div>
-                    <p className="font-medium">Good Match</p>
+                    <p className="font-medium">Verified Posting</p>
                     <p className="text-sm text-muted-foreground">
-                      Your skills align well with this job
+                      Client identity and payment method confirmed
                     </p>
                   </div>
                 </div>
-                <div className="flex items-start gap-3">
-                  <div className="w-2 h-2 bg-secondary rounded-full mt-2"></div>
-                  <div>
-                    <p className="font-medium">Close Location</p>
-                    <p className="text-sm text-muted-foreground">
-                      Job is in your service area
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Safety Tips</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm text-muted-foreground">
-                <p>• Always meet in a public place first</p>
-                <p>• Get clear job requirements in writing</p>
-                <p>• Use WorkLink's messaging system</p>
-                <p>• Report suspicious activity</p>
               </CardContent>
             </Card>
           </div>
         </div>
       </main>
+
+      {/* Apply Dialog */}
+      <Dialog open={isApplyOpen} onOpenChange={setIsApplyOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <form onSubmit={handleApplySubmit}>
+            <DialogHeader>
+              <DialogTitle>Apply for {job.title}</DialogTitle>
+              <DialogDescription>
+                Submit your proposed rate and a short note to the client.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="proposedRate">Your Proposed Rate ($)</Label>
+                <Input
+                  id="proposedRate"
+                  type="number"
+                  placeholder={`Client budget: $${job.budget}`}
+                  value={proposedRate}
+                  onChange={(e) => setProposedRate(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="coverLetter">Cover Note / Message to Client</Label>
+                <Textarea
+                  id="coverLetter"
+                  rows={4}
+                  placeholder="Explain your relevant experience and availability..."
+                  value={coverLetter}
+                  onChange={(e) => setCoverLetter(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsApplyOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Submitting...
+                  </>
+                ) : (
+                  'Send Proposal'
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

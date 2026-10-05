@@ -66,6 +66,7 @@ class Worker(Base):
     user = relationship('User', back_populates='worker_profile')
     skills = relationship('Skill', secondary=worker_skill_association, back_populates='workers')
     completed_jobs = Column(Integer, default=0)
+    applications = relationship('JobApplication', back_populates='worker')
 
 
 class Customer(Base):
@@ -109,6 +110,21 @@ class Job(Base):
 
     skills = relationship('Skill', secondary=job_skill_association, back_populates='jobs')
     customer = relationship('Customer')
+    applications = relationship('JobApplication', back_populates='job', cascade="all, delete-orphan")
+
+
+class JobApplication(Base):
+    __tablename__ = 'job_applications'
+    id = Column(Integer, primary_key=True)
+    job_id = Column(Integer, ForeignKey('jobs.id'), nullable=False)
+    worker_id = Column(Integer, ForeignKey('workers.id'), nullable=False)
+    cover_letter = Column(Text, nullable=True)
+    proposed_rate = Column(Float, default=0.0)
+    status = Column(String(50), default='pending')  # pending, accepted, rejected, withdrawn
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    job = relationship('Job', back_populates='applications')
+    worker = relationship('Worker', back_populates='applications')
 
 
 class Review(Base):
@@ -130,3 +146,4 @@ class Notification(Base):
     data = Column(Text)
     is_read = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+
