@@ -4,7 +4,10 @@
  */
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { signInWithPopup, signOut } from 'firebase/auth';
 import { apiClient } from '../services/api';
+import { auth, googleProvider } from '../services/firebase';
+import { syncUserToFirestore, seedFirestoreIfEmpty } from '../services/firestoreSync';
 
 export type UserRole = 'worker' | 'customer' | 'admin';
 
@@ -22,7 +25,8 @@ export interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
-  login: (email: string, password: string, role: UserRole) => Promise<User>;
+  login: (email: string, password: string, role?: UserRole) => Promise<User>;
+  loginWithGoogle: (role?: UserRole) => Promise<User>;
   register: (data: Record<string, unknown>) => Promise<void>;
   logout: () => void;
   clearError: () => void;
@@ -36,23 +40,26 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Check if user is already logged in on mount
+  // Check if user is already logged in on mount and ensure Firestore has demo data
   useEffect(() => {
     const checkAuth = async () => {
       try {
         const token = localStorage.getItem('auth_token');
         if (token) {
-          // Try to fetch user profile
           const response = await apiClient.get<{ user: User }>('/auth/me');
           setUser(response.user);
+          // Sync profile to Firestore
+          syncUserToFirestore(response.user);
         }
       } catch (err) {
-        // Token is invalid or user is not authenticated
         localStorage.removeItem('auth_token');
         apiClient.setToken(null);
       } finally {
         setIsLoading(false);
       }
+
+      // Check and seed initial demo data into Firestore if empty
+      seedFirestoreIfEmpty();
     };
 
     checkAuth();
@@ -74,10 +81,70 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       apiClient.setToken(response.token);
       setUser(response.user);
+      // Persist in Firestore
+      await syncUserToFirestore(response.user);
       return response.user;
     } catch (err) {
       const error = err as { message?: string };
       const errorMessage = error.message || 'Login failed';
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loginWithGoogle = async (role: UserRole = 'customer') => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const cred = await signInWithPopup(auth, googleProvider);
+      const fbUser = cred.user;
+
+      let userObj: User;
+      let token: string;
+
+      try {
+        // Exchange with backend
+        const response = await apiClient.post<{
+          token: string;
+          user: User;
+        }>('/auth/firebase-login', {
+          email: fbUser.email,
+          name: fbUser.displayName || fbUser.email?.split('@')[0] || 'Google User',
+          role,
+          avatar: fbUser.photoURL || undefined,
+          firebase_uid: fbUser.uid,
+        });
+        token = response.token;
+        userObj = response.user;
+      } catch (backendErr) {
+        // Fallback for standalone/mock mode
+        token = await fbUser.getIdToken();
+        userObj = {
+          id: fbUser.uid,
+          email: fbUser.email || '',
+          name: fbUser.displayName || fbUser.email?.split('@')[0] || 'User',
+          role,
+          avatar: fbUser.photoURL || undefined,
+          verified: true,
+        };
+      }
+
+      apiClient.setToken(token);
+      setUser(userObj);
+
+      // Save directly to Firestore 'users' collection
+      await syncUserToFirestore(userObj, {
+        firebase_uid: fbUser.uid,
+        authProvider: 'google',
+      });
+
+      return userObj;
+    } catch (err) {
+      const error = err as { message?: string };
+      const errorMessage = error.message || 'Google sign-in failed';
       setError(errorMessage);
       throw err;
     } finally {
@@ -97,6 +164,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       apiClient.setToken(response.token);
       setUser(response.user);
+      // Sync into Firestore 'users' collection
+      await syncUserToFirestore(response.user, data);
     } catch (err) {
       const error = err as { message?: string };
       const errorMessage = error.message || 'Registration failed';
@@ -115,11 +184,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       apiClient.setToken(token);
       if (maybeUser) {
         setUser(maybeUser);
+        await syncUserToFirestore(maybeUser);
         return maybeUser;
       }
 
       const resp = await apiClient.get<{ user: User }>('/auth/me');
       setUser(resp.user);
+      await syncUserToFirestore(resp.user);
       return resp.user;
     } catch (err) {
       const error = err as { message?: string };
@@ -131,7 +202,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await signOut(auth);
+    } catch {
+      // ignore
+    }
     localStorage.removeItem('auth_token');
     apiClient.setToken(null);
     setUser(null);

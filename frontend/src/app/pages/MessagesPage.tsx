@@ -5,8 +5,9 @@ import { Card, CardContent } from '../components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
 import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
-import { Send, Check, CheckCheck, Phone, Video, Info } from 'lucide-react';
+import { Send, Check, CheckCheck, Phone, Video, Info, Sparkles } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { sendFirestoreMessage, subscribeToChannelMessages } from '../services/firestoreSync';
 
 interface Message {
   id: string;
@@ -98,32 +99,67 @@ export function MessagesPage() {
     scrollToBottom();
   }, [selectedChannelId, channels]);
 
-  const handleSendMessage = (e: React.FormEvent) => {
+  // Subscribe to real-time Firestore updates for selected channel
+  useEffect(() => {
+    const unsubscribe = subscribeToChannelMessages(selectedChannelId, (firestoreMsgs) => {
+      if (firestoreMsgs && firestoreMsgs.length > 0) {
+        setChannels(prev => prev.map(ch => {
+          if (ch.id === selectedChannelId) {
+            const lastMsg = firestoreMsgs[firestoreMsgs.length - 1];
+            return {
+              ...ch,
+              lastMessage: lastMsg.text,
+              time: lastMsg.timestamp,
+              messages: firestoreMsgs,
+            };
+          }
+          return ch;
+        }));
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [selectedChannelId]);
+
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!typedMessage.trim()) return;
 
+    const msgText = typedMessage.trim();
+    setTypedMessage('');
+
+    const currentSenderId = user?.id || (currentRole === 'worker' ? 'sarah' : 'jane');
+    const currentSenderName = user?.name || (currentRole === 'worker' ? 'Sarah Johnson' : 'Jane Smith');
+
     const newMessage: Message = {
       id: `m_new_${Date.now()}`,
-      senderId: 'sarah', // assume current user is Sarah in mock state
-      text: typedMessage,
+      senderId: currentSenderId,
+      text: msgText,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       status: 'sent'
     };
 
-    const updatedChannels = channels.map(channel => {
+    // Optimistic local update
+    setChannels(prev => prev.map(channel => {
       if (channel.id === selectedChannelId) {
         return {
           ...channel,
-          lastMessage: typedMessage,
+          lastMessage: msgText,
           time: newMessage.timestamp,
           messages: [...channel.messages, newMessage]
         };
       }
       return channel;
-    });
+    }));
 
-    setChannels(updatedChannels);
-    setTypedMessage('');
+    // Send directly to Cloud Firestore database
+    await sendFirestoreMessage(selectedChannelId, {
+      senderId: currentSenderId,
+      senderName: currentSenderName,
+      text: msgText,
+    });
   };
 
   return (
@@ -193,7 +229,13 @@ export function MessagesPage() {
                   </Avatar>
                   <div>
                     <h3 className="font-semibold text-sm leading-tight">{selectedChannel.name}</h3>
-                    <p className="text-xs text-muted-foreground">{selectedChannel.role} • Active now</p>
+                    <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                      {selectedChannel.role} •
+                      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 rounded">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        Firestore Live
+                      </span>
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -206,7 +248,8 @@ export function MessagesPage() {
               {/* Message log */}
               <div className="flex-1 overflow-y-auto p-4 space-y-4">
                 {selectedChannel.messages.map((message) => {
-                  const isMe = message.senderId === 'sarah'; // Mocked as Sarah Johnson
+                  const currentUserId = user?.id || (currentRole === 'worker' ? 'sarah' : 'jane');
+                  const isMe = message.senderId === currentUserId || (currentRole === 'worker' && message.senderId === 'sarah') || (currentRole === 'customer' && message.senderId === 'jane');
                   return (
                     <div
                       key={message.id}

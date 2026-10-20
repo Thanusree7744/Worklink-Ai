@@ -126,6 +126,14 @@ class LoginRequest(BaseModel):
     role: Optional[str] = None
 
 
+class FirebaseLoginRequest(BaseModel):
+    email: EmailStr
+    name: Optional[str] = None
+    role: Optional[str] = "worker"
+    avatar: Optional[str] = None
+    firebase_uid: Optional[str] = None
+
+
 class UserResponse(BaseModel):
     id: str
     email: str

@@ -9,9 +9,9 @@ import { Textarea } from '../components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { RadioGroup, RadioGroupItem } from '../components/ui/radio-group';
-import { Badge } from '../components/ui/badge';
 import { X, Loader2 } from 'lucide-react';
 import { apiClient } from '../services/api';
+import { syncJobToFirestore } from '../services/firestoreSync';
 
 export function JobPostingPage() {
   const navigate = useNavigate();
@@ -68,7 +68,13 @@ export function JobPostingPage() {
     };
 
     try {
-      await apiClient.post('/jobs/', payload);
+      try {
+        await apiClient.post('/jobs/', payload);
+      } catch (backendErr) {
+        console.warn('Backend job post skipped/errored:', backendErr);
+      }
+      // Save directly into Cloud Firestore
+      await syncJobToFirestore(payload);
       navigate('/customer-dashboard');
     } catch (err: any) {
       setError(err.message || 'Failed to post job');

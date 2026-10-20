@@ -81,6 +81,58 @@ def login_json(request_data: schemas.LoginRequest, db: Session = Depends(get_db)
     }
 
 
+@router.post("/firebase-login", response_model=schemas.AuthResponse)
+def firebase_login(request_data: schemas.FirebaseLoginRequest, db: Session = Depends(get_db)):
+    email = request_data.email.strip().lower()
+    user = crud.get_user_by_email(db, email)
+    role = request_data.role or "customer"
+    
+    if not user:
+        # Create user for first-time Google/Firebase login
+        parts = (request_data.name or email.split("@")[0]).strip().split(" ", 1)
+        first_name = parts[0]
+        last_name = parts[1] if len(parts) > 1 else ""
+        
+        user_in = schemas.UserCreate(
+            email=email,
+            password=f"firebase_{request_data.firebase_uid or 'oauth'}",
+            role=role,
+            first_name=first_name,
+            last_name=last_name
+        )
+        user = crud.create_user(db, user_in)
+        
+        if role == 'worker':
+            worker = models.Worker(
+                user_id=user.id,
+                profile_image=request_data.avatar,
+                title="Professional Specialist",
+                bio="WorkLink professional specialist.",
+                experience=1,
+                skill_level="intermediate",
+                hourly_rate=45.0,
+                city="New York",
+                state="NY",
+                zip_code="10001"
+            )
+            db.add(worker)
+            db.commit()
+            db.refresh(worker)
+        elif role == 'customer':
+            customer = models.Customer(user_id=user.id)
+            db.add(customer)
+            db.commit()
+            db.refresh(customer)
+    
+    access_token = create_access_token(subject=str(user.id))
+    print(f"[AUTH] Firebase login successful for '{user.email}' ({user.role})")
+    return {
+        "token": access_token,
+        "user": get_user_response(user)
+    }
+
+
+
 @router.get("/debug-accounts")
 def debug_accounts(db: Session = Depends(get_db)):
     users = db.query(models.User).all()
