@@ -142,9 +142,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       });
 
       return userObj;
-    } catch (err) {
-      const error = err as { message?: string };
-      const errorMessage = error.message || 'Google sign-in failed';
+    } catch (err: any) {
+      if (err?.code === 'auth/popup-closed-by-user' || err?.code === 'auth/cancelled-popup-request') {
+        console.log('[Google Auth] Sign-in popup cancelled by user');
+        return null as any;
+      }
+      const errorMessage = err?.message || 'Google sign-in failed';
       setError(errorMessage);
       throw err;
     } finally {
