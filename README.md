@@ -44,6 +44,8 @@ cd Worklink-Ai
 
 Open a terminal in the root folder and navigate to `backend`:
 
+> **Windows Note**: If PowerShell shows a script execution error, run once: `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` (press `Y`), or use Command Prompt (CMD).
+
 #### On Windows:
 ```powershell
 cd backend
@@ -52,7 +54,7 @@ python -m venv .venv
 pip install -r requirements.txt
 python -m app.init_db
 python -m app.seed_db
-uvicorn app.main:app --reload --port 8000
+python -m uvicorn app.main:app --reload --port 8000
 ```
 
 #### On macOS / Linux:
@@ -63,7 +65,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 python3 -m app.init_db
 python3 -m app.seed_db
-uvicorn app.main:app --reload --port 8000
+python3 -m uvicorn app.main:app --reload --port 8000
 ```
 
 Backend will be running at: `http://localhost:8000`  
@@ -80,6 +82,7 @@ cd frontend
 npm install
 npm run dev
 ```
+*(On Windows PowerShell if scripts are restricted, use `npm.cmd install` & `npm.cmd run dev`)*
 
 Frontend will be running at: `http://localhost:5173`
 
