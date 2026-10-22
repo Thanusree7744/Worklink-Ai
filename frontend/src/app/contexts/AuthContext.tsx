@@ -143,11 +143,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       return userObj;
     } catch (err: any) {
+      console.error('[Firebase Google Auth Error]:', err);
       if (err?.code === 'auth/popup-closed-by-user' || err?.code === 'auth/cancelled-popup-request') {
         console.log('[Google Auth] Sign-in popup cancelled by user');
         return null as any;
       }
-      const errorMessage = err?.message || 'Google sign-in failed';
+      let errorMessage = err?.message || 'Google sign-in failed';
+      if (err?.code === 'auth/operation-not-allowed') {
+        errorMessage = 'Google Sign-In is not enabled yet in Firebase Console. Go to Firebase Console > Authentication > Sign-in method and enable Google.';
+      } else if (err?.code === 'auth/unauthorized-domain') {
+        errorMessage = 'Domain (localhost) is not in Authorized Domains. Check Firebase Console > Authentication > Settings > Authorized domains.';
+      } else if (err?.code === 'auth/popup-blocked') {
+        errorMessage = 'Sign-in popup was blocked by your browser. Please allow popups for localhost and try again.';
+      }
       setError(errorMessage);
       throw err;
     } finally {

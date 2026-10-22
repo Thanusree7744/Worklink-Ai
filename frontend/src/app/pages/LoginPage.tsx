@@ -168,6 +168,13 @@ export function LoginPage() {
             </div>
           </div>
 
+          {error && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertTitle>Sign In Notice</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
           {/* Quick 1-Click Google Sign-In */}
           <div className="mb-6">
             <Button
@@ -221,13 +228,6 @@ export function LoginPage() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {error && (
-              <Alert variant="destructive">
-                <AlertTitle>Login failed</AlertTitle>
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
-
             <div className="space-y-1.5">
               <Label htmlFor="login-email">Email Address</Label>
               <Input
