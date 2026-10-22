@@ -146,11 +146,11 @@ VITE_DEBUG_MODE=false
 VITE_ENV=development
 
 # Firebase & Firestore Configuration
-VITE_FIREBASE_API_KEY=your_api_key_here
-VITE_FIREBASE_AUTH_DOMAIN=worklink-ai-dda70.firebaseapp.com
-VITE_FIREBASE_PROJECT_ID=worklink-ai-dda70
-VITE_FIREBASE_STORAGE_BUCKET=worklink-ai-dda70.firebasestorage.app
-VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+VITE_FIREBASE_API_KEY=your_firebase_api_key
+VITE_FIREBASE_AUTH_DOMAIN=your_project_id.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=your_project_id
+VITE_FIREBASE_STORAGE_BUCKET=your_project_id.firebasestorage.app
+VITE_FIREBASE_MESSAGING_SENDER_ID=your_messaging_sender_id
 VITE_FIREBASE_APP_ID=your_app_id
 VITE_FIREBASE_MEASUREMENT_ID=your_measurement_id
 ```
