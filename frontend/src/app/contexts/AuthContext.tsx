@@ -27,6 +27,7 @@ export interface AuthContextType {
   error: string | null;
   login: (email: string, password: string, role?: UserRole) => Promise<User>;
   loginWithGoogle: (role?: UserRole) => Promise<User>;
+  loginWithMockGoogle: (role?: UserRole) => Promise<User>;
   register: (data: Record<string, unknown>) => Promise<void>;
   logout: () => void;
   clearError: () => void;
@@ -163,6 +164,37 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  const loginWithMockGoogle = async (role: UserRole = 'customer') => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const email = 'charankumarreddybantrothula@gmail.com';
+      const name = 'Charan Kumar Reddy';
+      const userObj: User = {
+        id: `google_user_${Date.now()}`,
+        email,
+        name,
+        role,
+        avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
+        verified: true,
+      };
+
+      const token = `token_google_${Date.now()}`;
+      apiClient.setToken(token);
+      setUser(userObj);
+
+      // Save directly to Firestore 'users' collection
+      await syncUserToFirestore(userObj, {
+        firebase_uid: userObj.id,
+        authProvider: 'google',
+      });
+
+      return userObj;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const register = async (data: Record<string, unknown>) => {
     setIsLoading(true);
     setError(null);
@@ -237,9 +269,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         isLoading,
         error,
         login,
+        loginWithGoogle,
+        loginWithMockGoogle,
         register,
         logout,
         clearError,
+        finishLogin,
       }}
     >
       {children}
